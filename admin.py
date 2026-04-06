@@ -9,9 +9,11 @@ from datetime import datetime, timedelta
 BOT_TOKEN = "8689755411:AAFUVGg8c2adyi2ExCZ3wHOvikxbjTkkVZk"
 OWNER_ID = 5031612259
 GITHUB_TOKEN = "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"
-GITHUB_REPO = "ha9669817-ctrl/Not_VIP" # تم التعديل حسب صورتك
+# --- بيانات حمد المحدثة بدقة ---
+GITHUB_REPO = "ha9669817-ctrl/Not_VIP" # نفس اللي بالصورة
 GITHUB_BRANCH = "main"
-DATABASE_FILE = "database.json"
+DATABASE_FILE = "database.json" # تأكد من كتابتها بهذا الشكل
+
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
