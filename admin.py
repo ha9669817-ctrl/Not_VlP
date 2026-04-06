@@ -6,7 +6,7 @@ import base64
 from datetime import datetime, timedelta
 
 # --- [ بياناتك الرسمية ] ---
-BOT_TOKEN = "8689755411:AAFUVGg8c2adyi2ExCZ3wHOvikxbjTkkVZk"
+BOT_TOKEN = "8478170976:AAHYHY1VrFtyqteJUOezyPVuyN7Fdae6mDI"
 ADMIN_ID = 5031612259
 GITHUB_TOKEN = "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"
 GITHUB_REPO = "ha9669817-ctrl/Not_VIP"
