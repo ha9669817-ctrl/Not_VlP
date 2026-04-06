@@ -1,93 +1,79 @@
 import telebot
 from telebot import types
+import requests
+import json
+import base64
 from datetime import datetime, timedelta
 
-# --- إعدادات حمد ---
-API_TOKEN = "8689755411:AAFUVGg8c2adyi2ExCZ3wHOvikxbjTkkVZk"
+# --- [ بياناتك الرسمية ] ---
+BOT_TOKEN = "8689755411:AAFUVGg8c2adyi2ExCZ3wHOvikxbjTkkVZk"
 ADMIN_ID = 5031612259
+GITHUB_TOKEN = "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"
+GITHUB_REPO = "ha9669817-ctrl/Not_VIP"
+DATABASE_FILE = "database.json"
 
-bot = telebot.TeleBot(API_TOKEN)
+bot = telebot.TeleBot(BOT_TOKEN)
 
-# --- [ واجهة القائمة الرئيسية ] ---
-def main_markup():
-    markup = types.InlineKeyboardMarkup(row_width=2)
-    btn_gen = types.InlineKeyboardButton("➕ إنشاء مفتاح جديد", callback_data="gen_code")
-    btn_del = types.InlineKeyboardButton("🗑️ حذف مفتاح", callback_data="del_code")
-    btn_req = types.InlineKeyboardButton("🛡️ طلبات التفعيل", callback_data="requests")
-    btn_info = types.InlineKeyboardButton("📊 حالة السيرفر", callback_data="status")
-    markup.add(btn_gen, btn_del)
-    markup.add(btn_req)
-    markup.add(btn_info)
-    return markup
+def sync_github(data=None, get_sha=False):
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{DATABASE_FILE}"
+    headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+    
+    # 1. جلب الملف أو إنشاؤه
+    r = requests.get(url, headers=headers)
+    sha = r.json().get('sha') if r.status_code == 200 else None
+    
+    if not data: # لو نبغى بس نقرأ
+        if r.status_code == 200:
+            content = base64.b64decode(r.json()['content']).decode()
+            return json.loads(content), sha
+        return {"keys": {}}, None
+
+    # 2. رفع الملف وتحديثه
+    payload = {
+        "message": "Update Keys",
+        "content": base64.b64encode(json.dumps(data, indent=4).encode()).decode(),
+        "sha": sha
+    }
+    res = requests.put(url, headers=headers, json=payload)
+    return res.status_code in [200, 201]
 
 @bot.message_handler(commands=['start'])
-def start(message):
+def welcome(message):
     if message.from_user.id == ADMIN_ID:
-        bot.send_message(
-            message.chat.id, 
-            f"💎 **أهلاً بك يا شيخ المبرمجين حمد**\n\nإليك لوحة التحكم الأسطورية الخاصة بك.\nتحكم بملفات GitHub والهاك بكل سهولة:",
-            parse_mode="Markdown", 
-            reply_markup=main_markup()
-        )
+        markup = types.InlineKeyboardMarkup(row_width=2)
+        markup.add(types.InlineKeyboardButton("➕ إنشاء مفتاح", callback_data="add"),
+                   types.InlineKeyboardButton("📋 المفاتيح النشطة", callback_data="list"),
+                   types.InlineKeyboardButton("🔗 رابط الأداة", callback_data="link"))
+        bot.send_message(message.chat.id, "💎 **لوحة تحكم التاجر حمد**\nكل شيء مربوط بجيت هوب أوتوماتيك!", reply_markup=markup)
 
-# --- [ معالج الأزرار ] ---
 @bot.callback_query_handler(func=lambda call: True)
-def callback_query(call):
-    # 1. إنشاء كود
-    if call.data == "gen_code":
-        msg = bot.send_message(call.message.chat.id, "📝 أرسل الاسم والمدة هكذا: `HAMAD 30`")
-        bot.register_next_step_handler(msg, process_gen)
-    
-    # 2. حذف كود (يعطيك النص اللي تحذفه)
-    elif call.data == "del_code":
-        msg = bot.send_message(call.message.chat.id, "🗑️ أرسل اسم المفتاح اللي تبي تحذفه:")
-        bot.register_next_step_handler(msg, process_del)
+def handle_query(call):
+    if call.data == "add":
+        msg = bot.send_message(call.message.chat.id, "📝 أرسل: `الاسم الايام` (مثلاً: VIP 30)")
+        bot.register_next_step_handler(msg, process_add)
+    elif call.data == "list":
+        data, _ = sync_github()
+        keys = data.get("keys", {})
+        txt = "📋 **الأكواد الحالية:**\n" + "\n".join([f"🔑 `{k}` | ⏳ `{v['expiry']}`" for k, v in keys.items()]) if keys else "❌ لا يوجد"
+        bot.send_message(call.message.chat.id, txt)
+    elif call.data == "link":
+        raw_url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/{DATABASE_FILE}"
+        bot.send_message(call.message.chat.id, f"🚀 **هذا الرابط اللي تحطه في أداتك:**\n\n`{raw_url}`")
 
-    # 3. نظام الموافقة والرفض (تجريبي للتنظيم)
-    elif call.data == "requests":
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("✅ موافقة", callback_data="approve"),
-                   types.InlineKeyboardButton("❌ رفض", callback_data="reject"))
-        bot.send_message(call.message.chat.id, "⏳ هل تريد الموافقة على طلب التفعيل الأخير؟", reply_markup=markup)
-
-    elif call.data == "status":
-        bot.answer_callback_query(call.id, "🚀 السيرفر يعمل بأقصى كفاءة يا بطل!")
-
-    elif call.data == "approve":
-        bot.edit_message_text("✅ **تمت الموافقة بنجاح!**\nقم بنسخ الكود الآن لـ GitHub.", call.message.chat.id, call.message.message_id)
-        
-    elif call.data == "reject":
-        bot.edit_message_text("❌ **تم رفض الطلب وإلغاء العملية.**", call.message.chat.id, call.message.message_id)
-
-# --- [ وظائف المعالجة ] ---
-
-def process_gen(message):
+def process_add(message):
     try:
         name, days = message.text.split()[0], int(message.text.split()[1])
         expiry = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d")
+        bot.send_message(message.chat.id, "⏳ جاري الرفع والربط...")
         
-        json_code = f'"{name}": {{"expiry": "{expiry}"}}'
+        data, _ = sync_github()
+        data["keys"][name] = {"expiry": expiry}
         
-        res = (
-            f"✨ **تم إنشاء المفتاح بنجاح** ✨\n\n"
-            f"👤 الاسم: `{name}`\n"
-            f"⏳ المدة: `{days}` يوم\n"
-            f"📅 ينتهي: `{expiry}`\n\n"
-            f"🔹 **انسخ وضعه في GitHub:**\n"
-            f"<code>{json_code}</code>"
-        )
-        bot.send_message(message.chat.id, res, parse_mode="HTML", reply_markup=main_markup())
+        if sync_github(data):
+            bot.send_message(message.chat.id, f"✅ **تم!**\nالمفتاح `{name}` جاهز في جيت هوب.")
+        else:
+            bot.send_message(message.chat.id, "❌ فشل الرفع، شيك على التوكن.")
     except:
-        bot.send_message(message.chat.id, "⚠️ خطأ! أرسل (الاسم مسافة الرقم)")
+        bot.send_message(message.chat.id, "⚠️ خطأ في الصيغة!")
 
-def process_del(message):
-    name = message.text
-    res = (
-        f"🗑️ **طلب حذف مفتاح**\n\n"
-        f"ابحث عن هذا السطر في ملفك بـ GitHub وامسحه:\n"
-        f"<code>\"{name}\": {{ ... }}</code>\n\n"
-        f"⚠️ تأكد من مسح الفاصلة `,` الزائدة بعد الحذف."
-    )
-    bot.send_message(message.chat.id, res, parse_mode="HTML", reply_markup=main_markup())
-
-bot.infinity_polling()
+bot.polling()
