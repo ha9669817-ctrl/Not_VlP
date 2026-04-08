@@ -10,5 +10,9 @@
     "HAMAD-7640": {
         "user": "VIP",
         "expiry": "2026-12-30"
+    },
+    "HAMAD-2801": {
+        "user": "VIP",
+        "expiry": "2026-12-30"
     }
 }
